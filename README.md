@@ -13,7 +13,7 @@ The assembler:
 
 - builds its opcode table from `Z80 instructions list.txt`
 - supports labels, forward references, `ORG`, `FORG`, `EQU`, `DB`, `DW`, `DS`, and `END`
-- accepts decimal, hexadecimal (`0x10`, `$10`, `10H`), binary (`0b1010`, `1010B`), character, and expression operands
+- accepts decimal, hexadecimal (`0x10`, `$10`, `10H`), binary (`%1010`, `0b1010`, `1010B`), character, and expression operands
 - fills unwritten addresses between the lowest and highest assembled addresses with zero bytes
 
 ## Supported source features

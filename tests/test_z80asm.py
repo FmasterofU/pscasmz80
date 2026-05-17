@@ -41,6 +41,16 @@ class Z80AssemblerTests(unittest.TestCase):
         self.assertEqual(result.start_address, 0x4000)
         self.assertEqual(result.binary, bytes([0x41, 0x42, 0x43, 0x00, 0x04, 0x40, 0xFF, 0xFF]))
 
+    def test_supports_percent_prefixed_binary_literals_without_breaking_modulo(self) -> None:
+        source = """
+            ORG %10
+            DB %10101010
+            DB 5%2
+        """
+        result = self.assembler.assemble_text(source)
+        self.assertEqual(result.start_address, 0x2)
+        self.assertEqual(result.binary, bytes([0xAA, 0x01]))
+
     def test_forg_changes_file_offset_without_changing_logical_addresses(self) -> None:
         source = """
             ORG 0
