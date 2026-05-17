@@ -57,14 +57,14 @@ class AssemblyResult:
 
 
 def parse_instruction_specs(path: Path) -> tuple[InstructionSpec, ...]:
-    pattern = re.compile(r"^\s*(\d+)\.\s+(.+?)\s{2,}(\d+)\s{2,}([0-9A-FX+*br ]+?)\s{2,}")
+    pattern = re.compile(r"^\s*(.+?)\s{2,}(\d+)\s{2,}(.+?)\s+(\d+(?:/\d+)?)\s+([\-*01?PV]{6})\s{2,}")
     specs: list[InstructionSpec] = []
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         match = pattern.match(line)
         if not match:
             continue
-        mnemonic_field = " ".join(match.group(2).split())
-        opcode_tokens = tuple(match.group(4).split())
+        mnemonic_field = " ".join(match.group(1).split())
+        opcode_tokens = tuple(match.group(3).split())
         parts = mnemonic_field.split(None, 1)
         mnemonic = parts[0].upper()
         operands = tuple(part.strip() for part in parts[1].split(",")) if len(parts) > 1 else ()
