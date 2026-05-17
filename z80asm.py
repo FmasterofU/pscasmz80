@@ -511,6 +511,7 @@ class Z80Assembler:
                 if len(statement.operands) != 1:
                     raise AssemblerError(f"Line {statement.line_number}: FORG requires exactly one operand")
                 # FORG only changes the output file position; logical addresses and labels stay on the ORG-driven PC.
+                evaluate_expression(statement.operands[0], resolve_visible, pc)
                 continue
             if statement.operator in {"DB", "DEFB", "BYTE"}:
                 pc += self._db_size(statement)
