@@ -51,12 +51,13 @@ class Z80AssemblerTests(unittest.TestCase):
             DB next-start
         """
         symbols = self.assembler._build_symbol_table(parse_source(source))
-        self.assertEqual(symbols["next"], 0x02)
+        jr_instruction_size = 2
+        self.assertEqual(symbols["next"], jr_instruction_size)
         result = self.assembler.assemble_text(source)
-        gap_size = 0x10 - 0x02
+        gap_size = 0x10 - jr_instruction_size
         self.assertEqual(result.start_address, 0)
         self.assertEqual(result.binary[:2], bytes([0x18, 0x00]))
-        self.assertEqual(result.binary, bytes([0x18, 0x00] + ([0x00] * gap_size) + [0x02]))
+        self.assertEqual(result.binary, bytes([0x18, 0x00] + ([0x00] * gap_size) + [jr_instruction_size]))
 
     def test_cli_writes_default_bin_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

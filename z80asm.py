@@ -584,10 +584,10 @@ class Z80Assembler:
         def emit(data: list[int], line_number: int) -> None:
             nonlocal pc, file_pc, lowest, highest
             for offset, byte in enumerate(data):
-                address = file_pc + offset
-                if address in output_bytes:
-                    raise AssemblerError(f"Line {line_number}: file offset 0x{address:04X} written more than once")
-                output_bytes[address] = byte & 0xFF
+                output_position = file_pc + offset
+                if output_position in output_bytes:
+                    raise AssemblerError(f"Line {line_number}: output position 0x{output_position:04X} written more than once")
+                output_bytes[output_position] = byte & 0xFF
             if data:
                 lowest = file_pc if lowest is None else min(lowest, file_pc)
                 highest = file_pc + len(data) if highest is None else max(highest, file_pc + len(data))
