@@ -377,8 +377,11 @@ def parse_operand(text: str) -> ParsedOperand:
 
 
 def try_evaluate_constant(text: str) -> int | None:
+    def unresolved_symbol(symbol: str) -> int:
+        raise AssemblerError(f"Unknown symbol {symbol}")
+
     try:
-        return evaluate_expression(text, lambda symbol: (_ for _ in ()).throw(AssemblerError(f"Unknown symbol {symbol}")), 0)
+        return evaluate_expression(text, unresolved_symbol, 0)
     except AssemblerError:
         return None
 
@@ -436,7 +439,7 @@ def coerce_byte(value: int, *, signed: bool, line_number: int, description: str)
     if signed:
         if not -128 <= value <= 127:
             raise AssemblerError(f"Line {line_number}: {description} out of signed 8-bit range: {value}")
-    elif not -128 <= value <= 0xFF:
+    elif not 0 <= value <= 0xFF:
         raise AssemblerError(f"Line {line_number}: {description} out of 8-bit range: {value}")
     return value & 0xFF
 
