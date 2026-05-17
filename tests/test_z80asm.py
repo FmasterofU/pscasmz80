@@ -41,6 +41,19 @@ class Z80AssemblerTests(unittest.TestCase):
         self.assertEqual(result.start_address, 0x4000)
         self.assertEqual(result.binary, bytes([0x41, 0x42, 0x43, 0x00, 0x04, 0x40, 0xFF, 0xFF]))
 
+    def test_forg_changes_file_offset_without_changing_logical_addresses(self) -> None:
+        source = """
+            ORG 0
+        start:
+            JR next
+            FORG 10H
+        next:
+            DB next-start
+        """
+        result = self.assembler.assemble_text(source)
+        self.assertEqual(result.start_address, 0)
+        self.assertEqual(result.binary, bytes([0x18, 0x00] + ([0x00] * 14) + [0x02]))
+
     def test_cli_writes_default_bin_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             asm_path = Path(tmpdir) / "demo.asm"

@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 INSTRUCTION_LIST_PATH = REPO_ROOT / "Z80 instructions list.txt"
 
 REG_BITS = {"B": 0, "C": 1, "D": 2, "E": 3, "H": 4, "L": 5, "A": 7}
-DIRECTIVES = {"ORG", "EQU", "DB", "DEFB", "BYTE", "DW", "DEFW", "WORD", "DS", "DEFS", "SPACE", "END"}
+DIRECTIVES = {"ORG", "FORG", "EQU", "DB", "DEFB", "BYTE", "DW", "DEFW", "WORD", "DS", "DEFS", "SPACE", "END"}
 IMPLICIT_A_MNEMONICS = {"AND", "CP", "OR", "SBC", "SUB", "XOR"}
 FIXED_NUMERIC_PATTERNS = {"0": 0, "1": 1, "2": 2, "8H": 0x08, "10H": 0x10, "18H": 0x18, "20H": 0x20, "28H": 0x28, "30H": 0x30, "38H": 0x38}
 OPERAND_KEYWORDS = {"A", "AF", "AF'", "B", "BC", "C", "D", "DE", "E", "H", "HL", "I", "IX", "IY", "L", "M", "NC", "NZ", "P", "PE", "PO", "R", "SP", "Z"}
@@ -507,6 +507,10 @@ class Z80Assembler:
                     raise AssemblerError(f"Line {statement.line_number}: ORG requires exactly one operand")
                 pc = evaluate_expression(statement.operands[0], resolve_visible, pc)
                 continue
+            if statement.operator == "FORG":
+                if len(statement.operands) != 1:
+                    raise AssemblerError(f"Line {statement.line_number}: FORG requires exactly one operand")
+                continue
             if statement.operator in {"DB", "DEFB", "BYTE"}:
                 pc += self._db_size(statement)
                 continue
@@ -563,6 +567,7 @@ class Z80Assembler:
     def _encode(self, statements: list[Statement], symbols: dict[str, int]) -> AssemblyResult:
         memory: dict[int, int] = {}
         pc = 0
+        file_pc = 0
         lowest: int | None = None
         highest: int | None = None
 
@@ -572,16 +577,17 @@ class Z80Assembler:
             return symbols[name]
 
         def emit(data: list[int], line_number: int) -> None:
-            nonlocal pc, lowest, highest
+            nonlocal pc, file_pc, lowest, highest
             for offset, byte in enumerate(data):
-                address = pc + offset
+                address = file_pc + offset
                 if address in memory:
                     raise AssemblerError(f"Line {line_number}: address 0x{address:04X} written more than once")
                 memory[address] = byte & 0xFF
             if data:
-                lowest = pc if lowest is None else min(lowest, pc)
-                highest = pc + len(data) if highest is None else max(highest, pc + len(data))
+                lowest = file_pc if lowest is None else min(lowest, file_pc)
+                highest = file_pc + len(data) if highest is None else max(highest, file_pc + len(data))
                 pc += len(data)
+                file_pc += len(data)
 
         for statement in statements:
             if statement.operator == "END":
@@ -590,6 +596,10 @@ class Z80Assembler:
                 continue
             if statement.operator == "ORG":
                 pc = evaluate_expression(statement.operands[0], symbol_resolver, pc)
+                file_pc = pc
+                continue
+            if statement.operator == "FORG":
+                file_pc = evaluate_expression(statement.operands[0], symbol_resolver, pc)
                 continue
             if statement.operator in {"DB", "DEFB", "BYTE"}:
                 data: list[int] = []
