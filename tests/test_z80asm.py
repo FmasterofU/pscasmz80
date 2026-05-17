@@ -55,6 +55,7 @@ class Z80AssemblerTests(unittest.TestCase):
         result = self.assembler.assemble_text(source)
         gap_size = 0x10 - 0x02
         self.assertEqual(result.start_address, 0)
+        self.assertEqual(result.binary[:2], bytes([0x18, 0x00]))
         self.assertEqual(result.binary, bytes([0x18, 0x00] + ([0x00] * gap_size) + [0x02]))
 
     def test_cli_writes_default_bin_output(self) -> None:

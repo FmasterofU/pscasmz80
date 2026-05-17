@@ -511,7 +511,9 @@ class Z80Assembler:
                 if len(statement.operands) != 1:
                     raise AssemblerError(f"Line {statement.line_number}: FORG requires exactly one operand")
                 # FORG only changes the output file position; logical addresses and labels stay on the ORG-driven PC.
-                evaluate_expression(statement.operands[0], resolve_visible, pc)
+                forg_offset = evaluate_expression(statement.operands[0], resolve_visible, pc)
+                if forg_offset < 0:
+                    raise AssemblerError(f"Line {statement.line_number}: FORG offset cannot be negative")
                 continue
             if statement.operator in {"DB", "DEFB", "BYTE"}:
                 pc += self._db_size(statement)
@@ -605,6 +607,8 @@ class Z80Assembler:
             if statement.operator == "FORG":
                 # FORG only repositions output bytes in the .bin file without affecting logical addresses.
                 file_pc = evaluate_expression(statement.operands[0], symbol_resolver, pc)
+                if file_pc < 0:
+                    raise AssemblerError(f"Line {statement.line_number}: FORG offset cannot be negative")
                 continue
             if statement.operator in {"DB", "DEFB", "BYTE"}:
                 data: list[int] = []
