@@ -578,9 +578,9 @@ class Z80Assembler:
 
     def _encode(self, statements: list[Statement], symbols: dict[str, int]) -> AssemblyResult:
         # Keys are output file offsets, not logical CPU addresses; logical address evaluation stays on `pc`.
-        output_bytes: dict[int, int] = {}
+        output_buffer: dict[int, int] = {}
         pc = 0
-        file_pc = 0
+        output_offset = 0
         lowest: int | None = None
         highest: int | None = None
 
@@ -590,17 +590,17 @@ class Z80Assembler:
             return symbols[name]
 
         def emit(data: list[int], line_number: int) -> None:
-            nonlocal pc, file_pc, lowest, highest
+            nonlocal pc, output_offset, lowest, highest
             for offset, byte in enumerate(data):
-                output_position = file_pc + offset
-                if output_position in output_bytes:
+                output_position = output_offset + offset
+                if output_position in output_buffer:
                     raise AssemblerError(f"Line {line_number}: output position 0x{output_position:04X} written more than once")
-                output_bytes[output_position] = byte & 0xFF
+                output_buffer[output_position] = byte & 0xFF
             if data:
-                lowest = file_pc if lowest is None else min(lowest, file_pc)
-                highest = file_pc + len(data) if highest is None else max(highest, file_pc + len(data))
+                lowest = output_offset if lowest is None else min(lowest, output_offset)
+                highest = output_offset + len(data) if highest is None else max(highest, output_offset + len(data))
                 pc += len(data)
-                file_pc += len(data)
+                output_offset += len(data)
 
         for statement in statements:
             if statement.operator == "END":
@@ -610,11 +610,11 @@ class Z80Assembler:
             if statement.operator == "ORG":
                 pc = evaluate_expression(statement.operands[0], symbol_resolver, pc)
                 # ORG changes both the logical address and the default output position.
-                file_pc = pc
+                output_offset = pc
                 continue
             if statement.operator == "FORG":
                 # FORG only repositions output bytes in the .bin file without affecting logical addresses.
-                file_pc = validate_output_position(
+                output_offset = validate_output_position(
                     evaluate_expression(statement.operands[0], symbol_resolver, pc),
                     line_number=statement.line_number,
                     directive="FORG",
@@ -649,7 +649,7 @@ class Z80Assembler:
         if lowest is None or highest is None:
             return AssemblyResult(binary=b"", start_address=None, end_address=None)
         image = bytearray(highest - lowest)
-        for address, value in output_bytes.items():
+        for address, value in output_buffer.items():
             image[address - lowest] = value
         return AssemblyResult(binary=bytes(image), start_address=lowest, end_address=highest)
 
