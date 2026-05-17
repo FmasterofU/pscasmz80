@@ -462,6 +462,12 @@ def coerce_word(value: int, *, line_number: int, description: str) -> int:
     return value & 0xFFFF
 
 
+def validate_output_position(position: int, *, line_number: int, directive: str) -> int:
+    if position < 0:
+        raise AssemblerError(f"Line {line_number}: {directive} position cannot be negative")
+    return position
+
+
 class Z80Assembler:
     def __init__(self) -> None:
         self.specs = INSTRUCTION_SPECS
@@ -511,9 +517,11 @@ class Z80Assembler:
                 if len(statement.operands) != 1:
                     raise AssemblerError(f"Line {statement.line_number}: FORG requires exactly one operand")
                 # FORG only changes the output file position; logical addresses and labels stay on the ORG-driven PC.
-                forg_offset = evaluate_expression(statement.operands[0], resolve_visible, pc)
-                if forg_offset < 0:
-                    raise AssemblerError(f"Line {statement.line_number}: FORG offset cannot be negative")
+                validate_output_position(
+                    evaluate_expression(statement.operands[0], resolve_visible, pc),
+                    line_number=statement.line_number,
+                    directive="FORG",
+                )
                 continue
             if statement.operator in {"DB", "DEFB", "BYTE"}:
                 pc += self._db_size(statement)
@@ -606,9 +614,11 @@ class Z80Assembler:
                 continue
             if statement.operator == "FORG":
                 # FORG only repositions output bytes in the .bin file without affecting logical addresses.
-                file_pc = evaluate_expression(statement.operands[0], symbol_resolver, pc)
-                if file_pc < 0:
-                    raise AssemblerError(f"Line {statement.line_number}: FORG offset cannot be negative")
+                file_pc = validate_output_position(
+                    evaluate_expression(statement.operands[0], symbol_resolver, pc),
+                    line_number=statement.line_number,
+                    directive="FORG",
+                )
                 continue
             if statement.operator in {"DB", "DEFB", "BYTE"}:
                 data: list[int] = []
