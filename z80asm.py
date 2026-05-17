@@ -570,7 +570,7 @@ class Z80Assembler:
 
     def _encode(self, statements: list[Statement], symbols: dict[str, int]) -> AssemblyResult:
         # Keys are output file offsets, not logical CPU addresses; logical address evaluation stays on `pc`.
-        memory: dict[int, int] = {}
+        output_bytes: dict[int, int] = {}
         pc = 0
         file_pc = 0
         lowest: int | None = None
@@ -585,9 +585,9 @@ class Z80Assembler:
             nonlocal pc, file_pc, lowest, highest
             for offset, byte in enumerate(data):
                 address = file_pc + offset
-                if address in memory:
-                    raise AssemblerError(f"Line {line_number}: address 0x{address:04X} written more than once")
-                memory[address] = byte & 0xFF
+                if address in output_bytes:
+                    raise AssemblerError(f"Line {line_number}: file offset 0x{address:04X} written more than once")
+                output_bytes[address] = byte & 0xFF
             if data:
                 lowest = file_pc if lowest is None else min(lowest, file_pc)
                 highest = file_pc + len(data) if highest is None else max(highest, file_pc + len(data))
@@ -639,7 +639,7 @@ class Z80Assembler:
         if lowest is None or highest is None:
             return AssemblyResult(binary=b"", start_address=None, end_address=None)
         image = bytearray(highest - lowest)
-        for address, value in memory.items():
+        for address, value in output_bytes.items():
             image[address - lowest] = value
         return AssemblyResult(binary=bytes(image), start_address=lowest, end_address=highest)
 
