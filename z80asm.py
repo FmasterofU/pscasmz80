@@ -16,6 +16,7 @@ REG_BITS = {"B": 0, "C": 1, "D": 2, "E": 3, "H": 4, "L": 5, "A": 7}
 DIRECTIVES = {"ORG", "EQU", "DB", "DEFB", "BYTE", "DW", "DEFW", "WORD", "DS", "DEFS", "SPACE", "END"}
 IMPLICIT_A_MNEMONICS = {"AND", "CP", "OR", "SBC", "SUB", "XOR"}
 FIXED_NUMERIC_PATTERNS = {"0": 0, "1": 1, "2": 2, "8H": 0x08, "10H": 0x10, "18H": 0x18, "20H": 0x20, "28H": 0x28, "30H": 0x30, "38H": 0x38}
+OPERAND_KEYWORDS = {"A", "AF", "AF'", "B", "BC", "C", "D", "DE", "E", "H", "HL", "I", "IX", "IY", "L", "M", "NC", "NZ", "P", "PE", "PO", "R", "SP", "Z"}
 
 
 class AssemblerError(Exception):
@@ -57,6 +58,7 @@ class AssemblyResult:
 
 
 def parse_instruction_specs(path: Path) -> tuple[InstructionSpec, ...]:
+    # Groups: instruction text, documented byte size, opcode byte/formula field, clock cycles, flag effects.
     pattern = re.compile(r"^\s*(.+?)\s{2,}(\d+)\s{2,}(.+?)\s+(\d+(?:/\d+)?)\s+([\-*01?PV]{6})\s{2,}")
     specs: list[InstructionSpec] = []
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
@@ -135,6 +137,7 @@ def split_operands(text: str) -> tuple[str, ...]:
 
 def parse_source(source: str) -> list[Statement]:
     statements: list[Statement] = []
+    # Labels allow letters, digits, underscore, dot, @, ? and $ after the first character.
     label_pattern = re.compile(r"^([A-Za-z_.@?][A-Za-z0-9_.@?$]*)\s*:\s*(.*)$")
     bare_label_pattern = re.compile(r"^([A-Za-z_.@?][A-Za-z0-9_.@?$]*)\s+([A-Za-z][A-Za-z0-9]*)\b(.*)$")
     for line_number, raw_line in enumerate(source.splitlines(), start=1):
@@ -224,6 +227,7 @@ def tokenize_expression(text: str) -> list[tuple[str, str]]:
             tokens.append(("OP", text[index]))
             index += 1
             continue
+        # Supported numeric formats: $FF, 0xFF, 0b1010, 10H, 1010B, 17Q/17O, and plain decimal.
         match = re.match(r"\$[0-9A-Fa-f]+|0[xX][0-9A-Fa-f]+|0[bB][01]+|[0-9][0-9A-Fa-f]*[HhBbQqOo]?|[0-9]+", text[index:])
         if match:
             tokens.append(("NUMBER", match.group(0)))
@@ -373,9 +377,13 @@ def parse_operand(text: str) -> ParsedOperand:
         if inner.startswith("IY+") or inner.startswith("IY-"):
             return ParsedOperand("indexed", f"IY:{stripped[1:-1][2:].strip()}")
         return ParsedOperand("indirect", stripped[1:-1].strip())
-    if normalized in {"A", "AF", "AF'", "B", "BC", "C", "D", "DE", "E", "H", "HL", "I", "IX", "IY", "L", "M", "NC", "NZ", "P", "PE", "PO", "R", "SP", "Z"}:
+    if normalized in OPERAND_KEYWORDS:
         return ParsedOperand("token", normalized)
     return ParsedOperand("expr", stripped)
+
+
+def is_formula_token(token: str) -> bool:
+    return any(marker in token for marker in ("rb", "b", "+", "*"))
 
 
 def try_evaluate_constant(text: str) -> int | None:
@@ -494,7 +502,7 @@ class Z80Assembler:
                 symbols[statement.label] = pc
             if statement.operator is None:
                 continue
-            if statement.operator in {"ORG"}:
+            if statement.operator == "ORG":
                 if len(statement.operands) != 1:
                     raise AssemblerError(f"Line {statement.line_number}: ORG requires exactly one operand")
                 pc = evaluate_expression(statement.operands[0], resolve_visible, pc)
@@ -669,7 +677,7 @@ class Z80Assembler:
                 else:
                     raise AssemblerError(f"Line {line_number}: unsupported placeholder kind {kind}")
                 continue
-            emitted.append(encode_formula(token, values) if any(marker in token for marker in ("rb", "b", "+", "*")) else int(token, 16))
+            emitted.append(encode_formula(token, values) if is_formula_token(token) else int(token, 16))
         if placeholders:
             raise AssemblerError(f"Line {line_number}: internal placeholder mismatch")
         if len(emitted) != spec.size:
