@@ -180,6 +180,8 @@ def decode_quoted_text(token: str) -> str:
 def parse_number_literal(token: str) -> int:
     upper = token.upper()
     if upper.startswith("%") and len(token) > 1:
+        if not re.fullmatch(r"%[01]+", token):
+            raise AssemblerError(f"Invalid binary literal {token!r}")
         return int(token[1:], 2)
     if upper.startswith("$") and len(token) > 1:
         return int(token[1:], 16)
@@ -202,11 +204,6 @@ def tokenize_expression(text: str) -> list[tuple[str, str]]:
     while index < len(text):
         if text[index].isspace():
             index += 1
-            continue
-        match = re.match(r"%[01]+", text[index:])
-        if match:
-            tokens.append(("NUMBER", match.group(0)))
-            index += len(match.group(0))
             continue
         if text[index] in {"'", '"'}:
             quote = text[index]
@@ -231,15 +228,15 @@ def tokenize_expression(text: str) -> list[tuple[str, str]]:
             tokens.append(("OP", text[index:index + 2]))
             index += 2
             continue
-        if text[index] in "+-*/%&|^~()":
-            tokens.append(("OP", text[index]))
-            index += 1
-            continue
         # Supported numeric formats: %1010, $FF, 0xFF, 0b1010, 10H, 1010B, 17Q/17O, and plain decimal.
-        match = re.match(r"\$[0-9A-Fa-f]+|0[xX][0-9A-Fa-f]+|0[bB][01]+|[0-9][0-9A-Fa-f]*[HhBbQqOo]?|[0-9]+", text[index:])
+        match = re.match(r"%[01]+|\$[0-9A-Fa-f]+|0[xX][0-9A-Fa-f]+|0[bB][01]+|[0-9][0-9A-Fa-f]*[HhBbQqOo]?|[0-9]+", text[index:])
         if match:
             tokens.append(("NUMBER", match.group(0)))
             index += len(match.group(0))
+            continue
+        if text[index] in "+-*/%&|^~()":
+            tokens.append(("OP", text[index]))
+            index += 1
             continue
         match = re.match(r"[A-Za-z_.@?$][A-Za-z0-9_.@?$]*", text[index:])
         if match:
