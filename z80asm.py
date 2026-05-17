@@ -516,8 +516,10 @@ class Z80Assembler:
             if statement.label and not statement.label.startswith("."):
                 current_global = statement.label
             qualified_label = self._qualify_label(statement.label, current_global, statement.line_number) if statement.label else None
+            scope = current_global
+            line_number = statement.line_number
 
-            def resolve_visible(name: str, scope: str | None = current_global, line_number: int = statement.line_number) -> int:
+            def resolve_visible(name: str) -> int:
                 return self._resolve_symbol(name, symbols, equ_map, scope, line_number)
 
             if statement.operator == "EQU":
@@ -631,8 +633,10 @@ class Z80Assembler:
                 break
             if statement.label and not statement.label.startswith("."):
                 current_global = statement.label
+            scope = current_global
+            line_number = statement.line_number
 
-            def symbol_resolver(name: str, scope: str | None = current_global, line_number: int = statement.line_number) -> int:
+            def symbol_resolver(name: str) -> int:
                 return self._resolve_symbol(name, symbols, {}, scope, line_number)
 
             if statement.operator in {None, "EQU"}:
