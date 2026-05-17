@@ -120,7 +120,9 @@ def split_operands(text: str) -> tuple[str, ...]:
             depth += 1
             current.append(char)
         elif char == ")":
-            depth = max(0, depth - 1)
+            if depth == 0:
+                raise AssemblerError("Unbalanced closing parenthesis in operand list")
+            depth -= 1
             current.append(char)
         elif char == "," and depth == 0:
             items.append("".join(current).strip())
@@ -360,7 +362,7 @@ def parse_operand(text: str) -> ParsedOperand:
     normalized = normalize_operand_text(stripped)
     if normalized.startswith("(") and normalized.endswith(")"):
         inner = normalized[1:-1]
-        if inner in {"BC", "C", "DE", "HL", "IX", "IY", "SP"}:
+        if inner in {"BC", "C", "DE", "HL", "SP"}:
             return ParsedOperand("token", f"({inner})")
         if inner == "IX":
             return ParsedOperand("indexed", "IX:0")
@@ -400,6 +402,8 @@ def operand_matches(pattern: str, operand: ParsedOperand) -> bool:
         return operand.kind == "indirect"
     if pattern in {"(IX+n)", "(IY+n)"}:
         return operand.kind == "indexed" and operand.value.startswith(pattern[1:3])
+    if pattern in {"(IX)", "(IY)"}:
+        return operand.kind == "indexed" and operand.value == f"{pattern[1:3]}:0"
     if pattern in FIXED_NUMERIC_PATTERNS:
         if operand.kind != "expr":
             return False
@@ -500,7 +504,7 @@ class Z80Assembler:
                 continue
             if statement.operator in {"DW", "DEFW", "WORD"}:
                 if any(operand[:1] in {"'", '"'} for operand in statement.operands):
-                    raise AssemblerError(f"Line {statement.line_number}: strings are only supported in DB")
+                    raise AssemblerError(f"Line {statement.line_number}: strings are only supported in DB directives, not {statement.operator}")
                 pc += 2 * len(statement.operands)
                 continue
             if statement.operator in {"DS", "DEFS", "SPACE"}:

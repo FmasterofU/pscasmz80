@@ -11,7 +11,7 @@ class Z80AssemblerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.assembler = Z80Assembler()
 
-    def test_assembles_labels_indexed_modes_and_relative_jumps(self) -> None:
+    def test_basic_assembly_with_common_features(self) -> None:
         source = """
             ORG 100H
         start:
