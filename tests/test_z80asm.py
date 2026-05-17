@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from z80asm import Z80Assembler, main
+from z80asm import Z80Assembler, main, parse_source
 
 
 class Z80AssemblerTests(unittest.TestCase):
@@ -50,6 +50,8 @@ class Z80AssemblerTests(unittest.TestCase):
         next:
             DB next-start
         """
+        symbols = self.assembler._build_symbol_table(parse_source(source))
+        self.assertEqual(symbols["next"], 0x02)
         result = self.assembler.assemble_text(source)
         self.assertEqual(result.start_address, 0)
         self.assertEqual(result.binary, bytes([0x18, 0x00] + ([0x00] * 14) + [0x02]))

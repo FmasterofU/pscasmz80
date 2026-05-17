@@ -566,6 +566,7 @@ class Z80Assembler:
         return size
 
     def _encode(self, statements: list[Statement], symbols: dict[str, int]) -> AssemblyResult:
+        # Keys are output file offsets, not logical CPU addresses; logical address evaluation stays on `pc`.
         memory: dict[int, int] = {}
         pc = 0
         file_pc = 0
