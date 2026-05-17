@@ -24,3 +24,5 @@ The assembler:
 - relative branches using labels or expressions
 - strings in `DB`, for example `DB "HELLO",13,10`
 - `FORG` to move the output file position without changing the logical assembly address
+
+`ORG` changes the logical assembly address and resets the default output position to match it. `FORG` only moves where subsequent bytes are written in the generated `.bin`.

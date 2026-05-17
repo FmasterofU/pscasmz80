@@ -510,6 +510,7 @@ class Z80Assembler:
             if statement.operator == "FORG":
                 if len(statement.operands) != 1:
                     raise AssemblerError(f"Line {statement.line_number}: FORG requires exactly one operand")
+                # FORG only changes the output file position; logical addresses and labels stay on the ORG-driven PC.
                 continue
             if statement.operator in {"DB", "DEFB", "BYTE"}:
                 pc += self._db_size(statement)
@@ -596,9 +597,11 @@ class Z80Assembler:
                 continue
             if statement.operator == "ORG":
                 pc = evaluate_expression(statement.operands[0], symbol_resolver, pc)
+                # ORG changes both the logical address and the default output position.
                 file_pc = pc
                 continue
             if statement.operator == "FORG":
+                # FORG only repositions output bytes in the .bin file without affecting logical addresses.
                 file_pc = evaluate_expression(statement.operands[0], symbol_resolver, pc)
                 continue
             if statement.operator in {"DB", "DEFB", "BYTE"}:
