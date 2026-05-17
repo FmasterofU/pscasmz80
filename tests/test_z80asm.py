@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from z80asm import Z80Assembler, main, parse_source
+from z80asm import AssemblerError, Z80Assembler, main, parse_source
 
 
 class Z80AssemblerTests(unittest.TestCase):
@@ -58,6 +58,24 @@ class Z80AssemblerTests(unittest.TestCase):
         self.assertEqual(result.start_address, 0)
         self.assertEqual(result.binary[:2], bytes([0x18, 0x00]))
         self.assertEqual(result.binary, bytes([0x18, 0x00] + ([0x00] * gap_size) + [jr_instruction_size]))
+
+    def test_reuses_local_labels_under_different_global_labels(self) -> None:
+        source = """
+        first:
+        .loop:
+            JR .done
+        .done:
+        second:
+        .loop:
+            JR .done
+        .done:
+        """
+        result = self.assembler.assemble_text(source)
+        self.assertEqual(result.binary, bytes([0x18, 0x00, 0x18, 0x00]))
+
+    def test_local_label_requires_parent_global_label(self) -> None:
+        with self.assertRaisesRegex(AssemblerError, r"local label \.loop has no parent global label"):
+            self.assembler.assemble_text(".loop:\nNOP\n")
 
     def test_cli_writes_default_bin_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -19,6 +19,7 @@ The assembler:
 ## Supported source features
 
 - labels with `label:` or `label INSTRUCTION`
+- local labels beginning with `.` scoped to the most recent non-local label
 - `;` line comments
 - indexed addressing such as `(IX+5)` and `(IY-2)`
 - relative branches using labels or expressions

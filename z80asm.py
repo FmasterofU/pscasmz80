@@ -17,6 +17,7 @@ DIRECTIVES = {"ORG", "FORG", "EQU", "DB", "DEFB", "BYTE", "DW", "DEFW", "WORD", 
 IMPLICIT_A_MNEMONICS = {"AND", "CP", "OR", "SBC", "SUB", "XOR"}
 FIXED_NUMERIC_PATTERNS = {"0": 0, "1": 1, "2": 2, "8H": 0x08, "10H": 0x10, "18H": 0x18, "20H": 0x20, "28H": 0x28, "30H": 0x30, "38H": 0x38}
 OPERAND_KEYWORDS = {"A", "AF", "AF'", "B", "BC", "C", "D", "DE", "E", "H", "HL", "I", "IX", "IY", "L", "M", "NC", "NZ", "P", "PE", "PO", "R", "SP", "Z"}
+LOCAL_LABEL_SEPARATOR = "::"
 
 
 class AssemblerError(Exception):
@@ -480,32 +481,58 @@ class Z80Assembler:
     def assemble_file(self, source_path: Path) -> AssemblyResult:
         return self.assemble_text(source_path.read_text(encoding="utf-8"))
 
+    def _qualify_label(self, label: str, current_global: str | None, line_number: int) -> str:
+        if not label.startswith("."):
+            return label
+        if current_global is None:
+            raise AssemblerError(f"Line {line_number}: local label {label} has no parent global label")
+        return f"{current_global}{LOCAL_LABEL_SEPARATOR}{label}"
+
+    def _resolve_symbol(
+        self,
+        name: str,
+        labels: dict[str, int],
+        equ_map: dict[str, tuple[str, str | None]],
+        current_global: str | None,
+        line_number: int,
+        stack: set[str] | None = None,
+    ) -> int:
+        canonical_name = self._qualify_label(name, current_global, line_number) if name.startswith(".") else name
+        if canonical_name in labels:
+            return labels[canonical_name]
+        if canonical_name in equ_map:
+            return self._resolve_equ(canonical_name, labels, equ_map, stack or set())
+        raise AssemblerError(f"Unknown symbol {name}")
+
     def _build_symbol_table(self, statements: list[Statement]) -> dict[str, int]:
         symbols: dict[str, int] = {}
-        equ_map: dict[str, str] = {}
+        equ_map: dict[str, tuple[str, str | None]] = {}
         pc = 0
-
-        def resolve_visible(name: str) -> int:
-            if name in symbols:
-                return symbols[name]
-            if name in equ_map:
-                return self._resolve_equ(name, symbols, equ_map, set())
-            raise AssemblerError(f"Unknown symbol {name}")
+        current_global: str | None = None
 
         for statement in statements:
             if statement.operator == "END":
                 break
+            if statement.label and not statement.label.startswith("."):
+                current_global = statement.label
+            qualified_label = self._qualify_label(statement.label, current_global, statement.line_number) if statement.label else None
+
+            def resolve_visible(name: str, scope: str | None = current_global, line_number: int = statement.line_number) -> int:
+                return self._resolve_symbol(name, symbols, equ_map, scope, line_number)
+
             if statement.operator == "EQU":
-                if not statement.label:
+                if qualified_label is None:
                     raise AssemblerError(f"Line {statement.line_number}: EQU requires a label")
                 if len(statement.operands) != 1:
                     raise AssemblerError(f"Line {statement.line_number}: EQU requires exactly one operand")
-                equ_map[statement.label] = statement.operands[0]
-                continue
-            if statement.label:
-                if statement.label in symbols or statement.label in equ_map:
+                if qualified_label in symbols or qualified_label in equ_map:
                     raise AssemblerError(f"Line {statement.line_number}: duplicate label {statement.label}")
-                symbols[statement.label] = pc
+                equ_map[qualified_label] = (statement.operands[0], current_global)
+                continue
+            if qualified_label:
+                if qualified_label in symbols or qualified_label in equ_map:
+                    raise AssemblerError(f"Line {statement.line_number}: duplicate label {statement.label}")
+                symbols[qualified_label] = pc
             if statement.operator is None:
                 continue
             if statement.operator == "ORG":
@@ -549,7 +576,7 @@ class Z80Assembler:
             resolved[name] = self._resolve_equ(name, symbols, equ_map, set())
         return resolved
 
-    def _resolve_equ(self, name: str, labels: dict[str, int], equ_map: dict[str, str], stack: set[str]) -> int:
+    def _resolve_equ(self, name: str, labels: dict[str, int], equ_map: dict[str, tuple[str, str | None]], stack: set[str]) -> int:
         if name in labels:
             return labels[name]
         if name in stack:
@@ -557,11 +584,12 @@ class Z80Assembler:
         if name not in equ_map:
             raise AssemblerError(f"Unknown symbol {name}")
         stack.add(name)
+        expression, current_global = equ_map[name]
 
         def resolver(symbol: str) -> int:
-            return self._resolve_equ(symbol, labels, equ_map, stack)
+            return self._resolve_symbol(symbol, labels, equ_map, current_global, 0, stack)
 
-        value = evaluate_expression(equ_map[name], resolver, 0)
+        value = evaluate_expression(expression, resolver, 0)
         stack.remove(name)
         labels[name] = value
         return value
@@ -583,11 +611,7 @@ class Z80Assembler:
         output_offset = 0
         lowest: int | None = None
         highest: int | None = None
-
-        def symbol_resolver(name: str) -> int:
-            if name not in symbols:
-                raise AssemblerError(f"Unknown symbol {name}")
-            return symbols[name]
+        current_global: str | None = None
 
         def emit(data: list[int], line_number: int) -> None:
             nonlocal pc, output_offset, lowest, highest
@@ -605,6 +629,12 @@ class Z80Assembler:
         for statement in statements:
             if statement.operator == "END":
                 break
+            if statement.label and not statement.label.startswith("."):
+                current_global = statement.label
+
+            def symbol_resolver(name: str, scope: str | None = current_global, line_number: int = statement.line_number) -> int:
+                return self._resolve_symbol(name, symbols, {}, scope, line_number)
+
             if statement.operator in {None, "EQU"}:
                 continue
             if statement.operator == "ORG":
